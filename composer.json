@@ -11,13 +11,5 @@
     ],
     "require": {
         "php": ">=7.0"
-    },
-    "scripts": {
-        "post-update-cmd": [
-            "./install"
-        ],
-        "post-install-cmd": [
-            "./install"
-        ]
     }
 }

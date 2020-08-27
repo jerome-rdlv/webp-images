@@ -1,5 +1,8 @@
 # WebP Images
 
+You need to install `cwebp` locally by running `./install` in this
+plugin directory.
+
 This plugin only creates WebP images. To actually serve those you can
 add the following in your .htaccess:
 
