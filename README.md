@@ -1,7 +1,11 @@
 # WebP Images
 
-You need to install `cwebp` locally by running `./install` in this
-plugin directory.
+You need to install `cwebp` locally:
+
+```shell script
+wget -c https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.1.0-linux-x86-64.tar.gz -O - | tar -zxOvf - libwebp-1.1.0-linux-x86-64/bin/cwebp > cwebp
+chmod +x cwebp
+``` 
 
 This plugin only creates WebP images. To actually serve those you can
 add the following in your .htaccess:
