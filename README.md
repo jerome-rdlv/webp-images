@@ -1,6 +1,6 @@
 # WebP Images
 
-You need to install `cwebp` locally:
+You need to install `cwebp` in this plugin’s directory:
 
 ```shell script
 wget -c https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.1.0-linux-x86-64.tar.gz -O - | tar -zxOvf - libwebp-1.1.0-linux-x86-64/bin/cwebp > cwebp
