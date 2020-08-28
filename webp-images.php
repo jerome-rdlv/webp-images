@@ -55,16 +55,28 @@ add_action('images_webp_cron_hook', function () {
 });
 
 add_action('init', function () {
+    $exists = wp_next_scheduled('images_webp_cron_hook');
     if (file_exists(__DIR__ . '/cwebp')) {
-        if (!wp_next_scheduled('images_webp_cron_hook')) {
+        // binary found, schedule task if it does not exists yet
+        if (!$exists) {
             // default to 03:00:00
-            $time = (new DateTime())->setTime(3, 0, 0)->add(new DateInterval('P1D'));
+            $time = (new DateTime())->setTime(3, 0, 0);
+
             // allow to change that
             $time = apply_filters('webp_images_time', $time);
+
+            // assert first occurrence is in the future
+            $now = new DateTime();
+            while ($time < $now) {
+                $time->add(new DateInterval('P1D'));
+            }
             wp_schedule_event($time->format('U'), 'daily', 'images_webp_cron_hook');
         }
-    } elseif (wp_next_scheduled('images_webp_cron_hook')) {
-        $timestamp = wp_next_scheduled('images_webp_cron_hook');
-        wp_unschedule_event($timestamp, 'images_webp_cron_hook');
+    } else {
+        // binary not found, unschedule existing task
+        if ($exists) {
+            $timestamp = wp_next_scheduled('images_webp_cron_hook');
+            wp_unschedule_event($timestamp, 'images_webp_cron_hook');
+        }
     }
 });
