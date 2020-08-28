@@ -11,7 +11,7 @@
  * This plugin use precompiled cwebp from https://developers.google.com/speed/webp/docs/precompiled
  */
 
-add_action('images_webp_cron_hook', function () {
+add_action('webp_images_generation', function () {
     $cmd_path = __DIR__ . '/cwebp';
     if (!file_exists($cmd_path)) {
         return;
@@ -55,7 +55,7 @@ add_action('images_webp_cron_hook', function () {
 });
 
 add_action('init', function () {
-    $exists = wp_next_scheduled('images_webp_cron_hook');
+    $exists = wp_next_scheduled('webp_images_generation');
     if (file_exists(__DIR__ . '/cwebp')) {
         // binary found, schedule task if it does not exists yet
         if (!$exists) {
@@ -70,13 +70,13 @@ add_action('init', function () {
             while ($time < $now) {
                 $time->add(new DateInterval('P1D'));
             }
-            wp_schedule_event($time->format('U'), 'daily', 'images_webp_cron_hook');
+            wp_schedule_event($time->format('U'), 'daily', 'webp_images_generation');
         }
     } else {
         // binary not found, unschedule existing task
         if ($exists) {
-            $timestamp = wp_next_scheduled('images_webp_cron_hook');
-            wp_unschedule_event($timestamp, 'images_webp_cron_hook');
+            $timestamp = wp_next_scheduled('webp_images_generation');
+            wp_unschedule_event($timestamp, 'webp_images_generation');
         }
     }
 });
