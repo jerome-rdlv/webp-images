@@ -29,18 +29,23 @@ add_action('webp_images_generation', function () {
         return;
     }
 
+    trigger_error('Starting WebP conversion routine', E_USER_NOTICE);
+
+    // set priority to lowest
+    proc_nice(20);
+
     $upload_dir = wp_upload_dir()['basedir'];
     $paths = glob($upload_dir . '{,/*,/*/*}/*.{jpg,jpeg,png}', GLOB_BRACE);
-    $max = 20;
     $count = 0;
     foreach ($paths as $img_path) {
-        if ($count > $max) {
-            break;
-        }
         $webp_path = preg_replace('/\.(jpg|jpeg|png)$/', '.webp', $img_path);
+
         if (file_exists($webp_path)) {
+            // WebP version exists
             continue;
         }
+
+        // WebP version does not exist, create it
         passthru(
             sprintf(
                 '%s -quiet %s -o %s',
@@ -50,8 +55,11 @@ add_action('webp_images_generation', function () {
             ),
             $return
         );
+
         ++$count;
     }
+
+    trigger_error(sprintf('%s images converted to WebP', $count), E_USER_NOTICE);
 });
 
 add_action('init', function () {
