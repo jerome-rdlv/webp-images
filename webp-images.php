@@ -18,12 +18,13 @@ add_action('webp_images_generation', function () {
     }
 
     // test command execution
-    passthru(sprintf('%s -h', $cmd_path), $return);
+    passthru(sprintf('"%s" -h', $cmd_path), $return);
     if ($return !== 0) {
         trigger_error(
             sprintf(
-                'cwebp execution returned %s code during webp-images cron job.',
-                $return
+                'cwebp execution returned %s code during webp-images cron job with cmd %s.',
+                $return,
+                $cmd_path
             )
         );
         return;
@@ -48,7 +49,7 @@ add_action('webp_images_generation', function () {
         // WebP version does not exist, create it
         passthru(
             sprintf(
-                '%s -quiet %s -o %s',
+                '"%s" -quiet "%s" -o "%s"',
                 $cmd_path,
                 $img_path,
                 $webp_path
@@ -63,6 +64,7 @@ add_action('webp_images_generation', function () {
 });
 
 add_action('init', function () {
+    
     $exists = wp_next_scheduled('webp_images_generation');
     if (file_exists(__DIR__ . '/cwebp')) {
         // binary found, schedule task if it does not exists yet
