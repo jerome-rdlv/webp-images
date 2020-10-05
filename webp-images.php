@@ -66,8 +66,6 @@ add_action('webp_images_generation', function () {
 
 add_action('init', function () {
     
-    do_action('webp_images_generation');
-    
     $exists = wp_next_scheduled('webp_images_generation');
     if (file_exists(__DIR__ . '/cwebp')) {
         // binary found, schedule task if it does not exists yet
