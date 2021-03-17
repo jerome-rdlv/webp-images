@@ -13,6 +13,7 @@ namespace Rdlv\WordPress\WebpImages;
 
 use DateInterval;
 use DateTime;
+use WP_CLI;
 
 new WebpImages();
 
@@ -40,6 +41,10 @@ class WebpImages
             $mimes['webp'] = 'image/webp';
             return $mimes;
         });
+
+        if (defined('WP_CLI') && WP_CLI && class_exists('WP_CLI_Command')) {
+            WP_CLI::add_command('webp generate', [$this, 'cron']);
+        }
     }
 
     private function getQuality()
