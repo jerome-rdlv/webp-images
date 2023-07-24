@@ -36,6 +36,7 @@ class WebpImages
         add_action('init', [$this, 'schedule']);
         add_action('webp_images_generation', [$this, 'cron']);
         add_filter('wp_delete_file', [$this, 'delete']);
+        add_filter('mod_rewrite_rules', [$this, 'htaccess']);
 
         add_filter('mime_types', function ($mimes) {
             $mimes['webp'] = 'image/webp';
@@ -226,5 +227,28 @@ class WebpImages
             return null;
         }
         return unserialize($metadata);
+    }
+
+    public function htaccess(string $rules): string
+    {
+        $webp_rules = <<<EOD
+# BEGIN WebP
+AddType image/webp .webp
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteCond %{HTTP_ACCEPT} image/webp
+    RewriteCond %{REQUEST_URI} (?i)(.*)\.(jpe?g|png)$
+    RewriteCond %{DOCUMENT_ROOT}%1.webp -f
+    RewriteRule (?i)\.(jpe?g|png)$ %1.webp [NC,T=image/webp,L]
+</IfModule>
+<IfModule mod_headers.c>
+    <If "%{REQUEST_URI} =~ m#\.(jpe?g|png)$#">
+        Header append Vary Accept
+    </If>
+</IfModule>
+# END WebP
+EOD;
+        return "\n" . trim($webp_rules) . "\n\n" . trim($rules);
+
     }
 }
