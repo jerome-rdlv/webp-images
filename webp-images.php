@@ -100,12 +100,6 @@ class WebpImages
         // allow to change that
         $time = apply_filters('webp_images_task_time', $time);
 
-        // assert first occurrence is in the future
-        $now = new DateTime();
-        while ($time < $now) {
-            $time->add(new DateInterval('P1D'));
-        }
-
         wp_schedule_event($time->format('U'), 'daily', 'webp_images_generation');
     }
 
