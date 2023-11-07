@@ -13,6 +13,7 @@ namespace Rdlv\WordPress\WebpImages;
 
 use DateInterval;
 use DateTime;
+use Exception;
 use WP_CLI;
 
 new WebpImages();
@@ -31,6 +32,9 @@ class WebpImages
     /** @var string */
     private $uploadDir;
 
+    /** @var string */
+    private $lastPath = '';
+
     public function __construct()
     {
         add_action('init', [$this, 'schedule']);
@@ -43,12 +47,17 @@ class WebpImages
             return $mimes;
         });
 
+
         if (defined('WP_CLI') && WP_CLI && class_exists('WP_CLI_Command')) {
-            WP_CLI::add_command('webp generate', [$this, 'cron']);
+            try {
+                WP_CLI::add_command('webp generate', [$this, 'cron']);
+            } catch (Exception $e) {
+                trigger_error($e->getMessage(), E_USER_WARNING);
+            }
         }
     }
 
-    private function getQuality()
+    private function getQuality(): int
     {
         if (!$this->quality) {
             // WP_Image_Editor default
@@ -78,7 +87,7 @@ class WebpImages
         return $this->uploadDir;
     }
 
-    public function schedule()
+    public function schedule(): void
     {
         if (wp_next_scheduled('webp_images_generation')) {
             // task exists already
@@ -100,7 +109,7 @@ class WebpImages
         wp_schedule_event($time->format('U'), 'daily', 'webp_images_generation');
     }
 
-    public function cron()
+    public function cron(): void
     {
         // set priority to lowest
         proc_nice(20);
@@ -115,27 +124,37 @@ class WebpImages
             GLOB_BRACE
         );
 
+        add_action('wp_die_handler', [$this, 'wp_die_handler']);
+
         $count = 0;
         foreach ($paths as $path) {
-            if (preg_match('/-[0-9]+x[0-9]+\.[^.]+$/', $path)) {
-                // do not handle thumbnails directly
-                continue;
+            try {
+                if (preg_match('/-[0-9]+x[0-9]+\.[^.]+$/', $path)) {
+                    // do not handle thumbnails directly
+                    continue;
+                }
+                $this->generate($path) && ++$count;
+            } catch (Exception $e) {
+                error_log($e->getMessage());
             }
-            $this->generate($path);
-            ++$count;
         }
 
         if ($count) {
             trigger_error(sprintf('%s images converted to WebP', $count));
         }
+
     }
 
+    /**
+     * @throws Exception
+     */
     private function generate(string $path): bool
     {
-        $webp_path = $this->pathToWebp($path);
+        $this->lastPath = $path;
+        $webpPath = $this->pathToWebp($path);
 
-        if (file_exists($webp_path)) {
-            return true;
+        if (file_exists($webpPath)) {
+            return false;
         }
 
         $metadata = $this->getMetadata($path);
@@ -144,43 +163,40 @@ class WebpImages
         }
 
         // create full webp version
-        $editor = wp_get_image_editor($path);
-
-        if (is_wp_error($editor)) {
-            return false;
+        if (is_wp_error($editor = wp_get_image_editor($path))) {
+            throw new Exception($editor->get_error_message());
         }
 
         if (!$editor::supports_mime_type('image/webp')) {
             return false;
         }
 
-        $editor->set_quality($this->getQuality());
-        $output = $editor->save($webp_path);
-
-        if (is_wp_error($output)) {
-            return false;
+        if (is_wp_error($output = $editor->save($webpPath))) {
+            @unlink($webpPath);
+            throw new Exception(($output->get_error_message()));
         }
 
         if (!empty($metadata['original_image'])) {
             // convert original image and use it as source for generated thumbnails
             $path = preg_replace('/[^\/]+$/i', $metadata['original_image'], $path);
             $editor = wp_get_image_editor($path);
-            $webp_path = $this->pathToWebp($path);
+            $webpPath = $this->pathToWebp($path);
             $editor->set_quality(92);
-            $output = $editor->save($webp_path);
 
-            if (is_wp_error($output)) {
-                return false;
+            if (is_wp_error($output = $editor->save($webpPath))) {
+                @unlink($webpPath);
+                throw new Exception(($output->get_error_message()));
             }
         }
 
         if ($metadata['sizes']) {
             // create webp thumbnails
-            $editor = wp_get_image_editor($webp_path);
+            $editor = wp_get_image_editor($webpPath);
             $editor->set_quality($this->getQuality());
             $editor->multi_resize($metadata['sizes']);
         }
 
+        $this->lastPath = '';
         return true;
     }
 
@@ -189,10 +205,6 @@ class WebpImages
         return preg_replace('/\.[^.]+$/', '.webp', $path);
     }
 
-    /**
-     * @param $file
-     * @return mixed
-     */
     public function delete($file)
     {
         if ($file) {
@@ -204,10 +216,6 @@ class WebpImages
         return $file;
     }
 
-    /**
-     * @param $path
-     * @return array|null
-     */
     public function getMetadata($path): ?array
     {
         global $wpdb;
@@ -227,6 +235,31 @@ class WebpImages
             return null;
         }
         return unserialize($metadata);
+    }
+
+    public function wp_die_handler($handler)
+    {
+        if (!($error = error_get_last()) || $error['type'] !== E_ERROR) {
+            return $handler;
+        }
+        if (!$this->lastPath) {
+            return $handler;
+        }
+
+        $webpPath = $this->pathToWebp($this->lastPath);
+        if (!file_exists($webpPath)) {
+            return $handler;
+        }
+
+        /* This may happen with indexed colors PNG. We have no way to catch the
+         * Fatal Error thrown by the image function. Simply dropping the empty WebP file
+         * would trigger the error again on each cron, preventing WebP generation for
+         * other images. So web workaround this by replacing the empty WebP file with
+         * the original JPG or PNG version.
+         */
+        copy($this->lastPath, $webpPath);
+
+        return $handler;
     }
 
     public function htaccess(string $rules): string
@@ -249,6 +282,5 @@ AddType image/webp .webp
 # END WebP
 EOD;
         return "\n" . trim($webp_rules) . "\n\n" . trim($rules);
-
     }
 }
