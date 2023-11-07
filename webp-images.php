@@ -173,7 +173,10 @@ class WebpImages
         if (!empty($metadata['original_image'])) {
             // convert original image and use it as source for generated thumbnails
             $path = preg_replace('/[^\/]+$/i', $metadata['original_image'], $path);
-            $editor = wp_get_image_editor($path);
+
+            if (is_wp_error($editor = wp_get_image_editor($path))) {
+                throw new Exception($editor->get_error_message());
+            }
             $webpPath = $this->pathToWebp($path);
             $editor->set_quality(92);
 
@@ -185,12 +188,13 @@ class WebpImages
 
         if ($metadata['sizes']) {
             // create webp thumbnails
-            $editor = wp_get_image_editor($webpPath);
+            if (is_wp_error($editor = wp_get_image_editor($webpPath))) {
+                throw new Exception($editor->get_error_message());
+            }
             $editor->set_quality($this->getQuality());
             $editor->multi_resize($metadata['sizes']);
         }
 
-        $this->lastPath = '';
         return true;
     }
 
