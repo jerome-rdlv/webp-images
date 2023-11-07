@@ -111,7 +111,7 @@ class WebpImages
         // start with files because there may be multiple attachment for a single file due to i18n
         $paths = glob(
             sprintf(
-                '%s{,/*,/*/*}/*.{%s}',
+                '%s{,/sites/*}{,/*/*}/*.{%s}',
                 $this->getUploadBaseDir(),
                 implode(',', $this->getExtensions())
             ),
