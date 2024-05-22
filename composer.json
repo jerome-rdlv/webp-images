@@ -10,6 +10,12 @@
         }
     ],
     "require": {
-        "php": ">=7.0"
+        "php": ">=7.0",
+        "symfony/finder": "^7.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Rdlv\\WordPress\\WebpImages\\": "src/"
+        }
     }
 }
