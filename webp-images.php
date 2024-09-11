@@ -100,7 +100,11 @@ class WebpImages
         // allow to change that
         $time = apply_filters('webp_images_task_time', $time);
 
-        wp_schedule_event($time->format('U'), 'daily', 'webp_images_generation');
+        wp_schedule_event(
+            $time->format('U'),
+            apply_filters('webp_images_recurrence', 'daily'),
+            'webp_images_generation'
+        );
     }
 
     public function cron(): void
@@ -136,7 +140,6 @@ class WebpImages
         if ($count) {
             trigger_error(sprintf('%s images converted to WebP', $count));
         }
-
     }
 
     /**
@@ -218,16 +221,18 @@ class WebpImages
     {
         global $wpdb;
         $basepath = substr_replace($path, '', 0, strlen(trailingslashit($this->getUploadBaseDir())));
-        $metadata = $wpdb->get_var($wpdb->prepare(
-            "
+        $metadata = $wpdb->get_var(
+            $wpdb->prepare(
+                "
             SELECT pm2.meta_value
             FROM $wpdb->postmeta pm1
             RIGHT JOIN $wpdb->postmeta pm2 ON pm1.post_id = pm2.post_id AND pm2.meta_key = '_wp_attachment_metadata'
             WHERE pm1.meta_key = '_wp_attached_file'
             AND pm1.meta_value = %s
             ",
-            $basepath
-        ));
+                $basepath
+            )
+        );
 
         if (empty($metadata)) {
             return null;
@@ -279,6 +284,6 @@ AddType image/webp .webp
 </IfModule>
 # END WebP
 EOD;
-        return "\n" . trim($webp_rules) . "\n\n" . trim($rules);
+        return "\n".trim($webp_rules)."\n\n".trim($rules);
     }
 }
