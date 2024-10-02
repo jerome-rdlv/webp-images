@@ -272,12 +272,14 @@ class WebpImages
 AddType image/webp .webp
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    
     RewriteCond %{HTTP_ACCEPT} image/webp
     RewriteCond %{REQUEST_URI} (?i)(.*)\.(jpe?g|png)$
     RewriteCond %{DOCUMENT_ROOT}%1.webp -f
     RewriteRule (?i)\.(jpe?g|png)$ %1.webp [NC,T=image/webp,L]
     
     # for SVG images inlining bitmaps
+    RewriteCond %{HTTP_ACCEPT} image/webp
     RewriteCond %{REQUEST_URI} (?i)(.*)_(jpe?g|png)\.svg$
     RewriteCond %{DOCUMENT_ROOT}%1_webp.svg -f
     RewriteRule (?i)_(jpe?g|png)\.svg$ %1_webp.svg [NC,T=image/webp,L]
