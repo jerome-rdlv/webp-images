@@ -47,7 +47,6 @@ class WebpImages
             return $mimes;
         });
 
-
         if (defined('WP_CLI') && WP_CLI && class_exists('WP_CLI_Command')) {
             try {
                 WP_CLI::add_command('webp generate', [$this, 'cron']);
@@ -145,7 +144,27 @@ class WebpImages
     /**
      * @throws Exception
      */
-    private function generate(string $path): bool
+    private function save($editor, string $path): void
+    {
+        $editor->set_quality($this->getQuality());
+        $webpPath = $this->pathToWebp($path);
+        if (is_wp_error($output = $editor->save($webpPath))) {
+            @unlink($webpPath);
+            throw new Exception($output->get_error_message());
+        }
+
+        $originalSize = filesize($path);
+        $webpSize = filesize($webpPath);
+        if ($originalSize <= $webpSize) {
+            @unlink($webpPath);
+            throw new Exception(sprintf('Webp image size (%d) exceeds original (%d)', $webpSize, $originalSize));
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
+    public function generate(string $path): bool
     {
         $this->lastPath = $path;
         $webpPath = $this->pathToWebp($path);
@@ -160,6 +179,7 @@ class WebpImages
         }
 
         // create full webp version
+
         if (is_wp_error($editor = wp_get_image_editor($path))) {
             throw new Exception($editor->get_error_message());
         }
@@ -168,10 +188,8 @@ class WebpImages
             return false;
         }
 
-        if (is_wp_error($output = $editor->save($webpPath))) {
-            @unlink($webpPath);
-            throw new Exception(($output->get_error_message()));
-        }
+        // main image
+        $this->save($editor, $path);
 
         if (!empty($metadata['original_image'])) {
             // convert original image and use it as source for generated thumbnails
@@ -180,13 +198,7 @@ class WebpImages
             if (is_wp_error($editor = wp_get_image_editor($path))) {
                 throw new Exception($editor->get_error_message());
             }
-            $webpPath = $this->pathToWebp($path);
-            $editor->set_quality(92);
-
-            if (is_wp_error($output = $editor->save($webpPath))) {
-                @unlink($webpPath);
-                throw new Exception(($output->get_error_message()));
-            }
+            $this->save($editor, $path);
         }
 
         if ($metadata['sizes']) {
@@ -257,7 +269,7 @@ class WebpImages
         /* This may happen with indexed colors PNG. We have no way to catch the
          * Fatal Error thrown by the image function. Simply dropping the empty WebP file
          * would trigger the error again on each cron, preventing WebP generation for
-         * other images. So web workaround this by replacing the empty WebP file with
+         * other images. So we work around this by replacing the empty WebP file with
          * the original JPG or PNG version.
          */
         copy($this->lastPath, $webpPath);
