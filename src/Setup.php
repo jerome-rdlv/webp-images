@@ -81,7 +81,11 @@ class Setup
         // allow to change that
         $time = apply_filters('webp_images_task_time', $time);
 
-        wp_schedule_event($time->format('U'), 'daily', 'webp_images_generation');
+        wp_schedule_event(
+            $time->format('U'),
+            apply_filters('webp_images_recurrence', 'daily'),
+            'webp_images_generation'
+        );
     }
 
     public function cron(): void
@@ -147,6 +151,26 @@ class Setup
     /**
      * @throws Exception
      */
+    private function save($editor, string $path): void
+    {
+        $editor->set_quality($this->getQuality());
+        $webpPath = $this->pathToWebp($path);
+        if (is_wp_error($output = $editor->save($webpPath))) {
+            @unlink($webpPath);
+            throw new Exception($output->get_error_message());
+        }
+
+        $originalSize = filesize($path);
+        $webpSize = filesize($webpPath);
+        if ($originalSize <= $webpSize) {
+            @unlink($webpPath);
+            throw new Exception(sprintf('Webp image size (%d) exceeds original (%d)', $webpSize, $originalSize));
+        }
+    }
+
+    /**
+     * @throws Exception
+     */
     private function generate(string $path): bool
     {
         $this->lastPath = $path;
@@ -157,7 +181,13 @@ class Setup
             return false;
         }
 
+        $metadata = $this->getMetadata($path);
+        if (!$metadata) {
+            return false;
+        }
+
         // create full webp version
+
         if (is_wp_error($editor = wp_get_image_editor($path))) {
             throw new Exception($editor->get_error_message());
         }
@@ -166,15 +196,8 @@ class Setup
             return false;
         }
 
-        if (is_wp_error($output = @$editor->save($webpPath))) {
-            @unlink($webpPath);
-            throw new Exception(($output->get_error_message()));
-        }
-
-        $metadata = $this->getMetadata($path);
-        if (!$metadata) {
-            return false;
-        }
+        // main image
+        $this->save($editor, $path);
 
         if (!empty($metadata['original_image'])) {
             // convert original image and use it as source for generated thumbnails
@@ -183,13 +206,7 @@ class Setup
             if (is_wp_error($editor = wp_get_image_editor($path))) {
                 throw new Exception($editor->get_error_message());
             }
-            $webpPath = $this->pathToWebp($path);
-            $editor->set_quality(92);
-
-            if (is_wp_error($output = $editor->save($webpPath))) {
-                @unlink($webpPath);
-                throw new Exception(($output->get_error_message()));
-            }
+            $this->save($editor, $path);
         }
 
         if ($metadata['sizes']) {
@@ -275,10 +292,17 @@ class Setup
 AddType image/webp .webp
 <IfModule mod_rewrite.c>
     RewriteEngine On
+    
     RewriteCond %{HTTP_ACCEPT} image/webp
     RewriteCond %{REQUEST_URI} (?i)(.*)\.(jpe?g|png)$
     RewriteCond %{DOCUMENT_ROOT}%1.webp -f
     RewriteRule (?i)\.(jpe?g|png)$ %1.webp [NC,T=image/webp,L]
+    
+    # for SVG images inlining bitmaps
+    RewriteCond %{HTTP_ACCEPT} image/webp
+    RewriteCond %{REQUEST_URI} (?i)(.*)_(jpe?g|png)\.svg$
+    RewriteCond %{DOCUMENT_ROOT}%1_webp.svg -f
+    RewriteRule (?i)_(jpe?g|png)\.svg$ %1_webp.svg [NC,T=image/webp,L]
 </IfModule>
 <IfModule mod_headers.c>
     <If "%{REQUEST_URI} =~ m#\.(jpe?g|png)$#">
