@@ -152,7 +152,8 @@ class Setup
         $this->lastPath = $path;
         $webpPath = $this->pathToWebp($path);
 
-        if (file_exists($webpPath)) {
+        // skip if webp exists and is more recent than source
+        if (file_exists($webpPath) && filemtime($path) <= filemtime($webpPath)) {
             return false;
         }
 
