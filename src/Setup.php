@@ -75,8 +75,8 @@ class Setup
             return;
         }
 
-        // default to 03:00:00
-        $time = (new DateTime())->setTime(3, 0);
+        // default to 03:XX:00
+        $time = (new DateTime())->setTime(3, rand(0, 59));
 
         // allow to change that
         $time = apply_filters('webp_images_task_time', $time);
