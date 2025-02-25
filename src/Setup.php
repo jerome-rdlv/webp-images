@@ -3,7 +3,6 @@
 namespace Rdlv\WordPress\WebpImages;
 
 use DateTime;
-use ErrorException;
 use Exception;
 use SplFileInfo;
 use Symfony\Component\Finder\Finder;
@@ -107,8 +106,8 @@ class Setup
             $uploads.'/*/*',
         ];
 
-        if (is_multisite() && file_exists($uploads.'/sites')) {
-            $in[] = $uploads.'/sites/*';
+        if (is_multisite() && file_exists($uploads . '/sites')) {
+            $in[] = $uploads . '/sites/*';
         }
 
         $in = apply_filters('webp_images_paths', $in);
@@ -127,19 +126,14 @@ class Setup
                 return !preg_match('/-[0-9]+x[0-9]+\.[^.]+$/', $file->getFilename());
             });
 
-        add_action('wp_die_handler', [$this, 'wp_die_handler']);
+        register_shutdown_function([$this, 'shutdown']);
 
         $count = 0;
         foreach ($finder as $file) {
             try {
-                set_error_handler(function ($level, $message, $file, $line) {
-                    throw new ErrorException($message, 0, $level, $file, $line);
-                });
                 $this->generate($file->getRealPath()) && ++$count;
             } catch (Throwable $e) {
                 error_log($e->getMessage());
-            } finally {
-                restore_error_handler();
             }
         }
 
@@ -153,18 +147,25 @@ class Setup
      */
     private function save($editor, string $path): void
     {
-        $editor->set_quality($this->getQuality());
         $webpPath = $this->pathToWebp($path);
-        if (is_wp_error($output = $editor->save($webpPath))) {
+        try {
+            $editor->set_quality($this->getQuality());
+            if (is_wp_error($output = $editor->save($webpPath))) {
+                throw new Exception($output->get_error_message());
+            }
+            $originalSize = filesize($path);
+            $webpSize = filesize($webpPath);
+            if ($originalSize <= $webpSize) {
+                throw new Exception(sprintf('Webp image size (%d) exceeds original (%d)', $webpSize, $originalSize));
+            }
+            if ($webpSize === 0) {
+                throw new Exception('Webp image empty');
+            }
+        } catch (Exception $e) {
             @unlink($webpPath);
-            throw new Exception($output->get_error_message());
-        }
-
-        $originalSize = filesize($path);
-        $webpSize = filesize($webpPath);
-        if ($originalSize <= $webpSize) {
-            @unlink($webpPath);
-            throw new Exception(sprintf('Webp image size (%d) exceeds original (%d)', $webpSize, $originalSize));
+            // symlink to original image to prevent future attempts
+            symlink(basename($path), $webpPath);
+            throw $e;
         }
     }
 
@@ -181,11 +182,6 @@ class Setup
             return false;
         }
 
-        $metadata = $this->getMetadata($path);
-        if (!$metadata) {
-            return false;
-        }
-
         // create full webp version
 
         if (is_wp_error($editor = wp_get_image_editor($path))) {
@@ -198,6 +194,11 @@ class Setup
 
         // main image
         $this->save($editor, $path);
+
+        $metadata = $this->getMetadata($path);
+        if (!$metadata) {
+            return false;
+        }
 
         if (!empty($metadata['original_image'])) {
             // convert original image and use it as source for generated thumbnails
@@ -260,29 +261,28 @@ class Setup
         return unserialize($metadata);
     }
 
-    public function wp_die_handler($handler)
+    public function shutdown(): void
     {
         if (!($error = error_get_last()) || $error['type'] !== E_ERROR) {
-            return $handler;
+            return;
         }
+
         if ($this->lastPath === null) {
-            return $handler;
+            return;
         }
 
         $webpPath = $this->pathToWebp($this->lastPath);
         if (!file_exists($webpPath)) {
-            return $handler;
+            return;
         }
 
         /* This may happen with indexed colors PNG. We have no way to catch the
          * Fatal Error thrown by the image function. Simply dropping the empty WebP file
          * would trigger the error again on each cron, preventing WebP generation for
-         * other images. So we work around this by replacing the empty WebP file with
-         * the original JPG or PNG version.
+         * other images. So we work around this by linking to the original JPG or PNG version.
          */
-        copy($this->lastPath, $webpPath);
-
-        return $handler;
+        @unlink($webpPath);
+        symlink(basename($this->lastPath), $webpPath);
     }
 
     public function htaccess(string $rules): string
@@ -311,6 +311,6 @@ AddType image/webp .webp
 </IfModule>
 # END WebP
 EOD;
-        return "\n".trim($webp_rules)."\n\n".trim($rules);
+        return "\n" . trim($webp_rules) . "\n\n" . trim($rules);
     }
 }
