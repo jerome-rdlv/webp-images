@@ -13,14 +13,23 @@ use Rdlv\WordPress\WebpImages\Setup;
 
 defined('ABSPATH') || exit;
 
+//if (!class_exists(Setup::class)) {
+//    $autoload = __DIR__.'/vendor/autoload.php';
+//    if (file_exists($autoload)) {
+//        require_once $autoload;
+//    } else {
+//        error_log('You need to install dependencies with `composer install`.');
+//        return;
+//    }
+//}
+
+$autoload = __DIR__ . '/vendor/autoload.php';
+if (file_exists($autoload)) {
+    require_once $autoload;
+}
 if (!class_exists(Setup::class)) {
-    $autoload = __DIR__.'/vendor/autoload.php';
-    if (file_exists($autoload)) {
-        require_once $autoload;
-    } else {
-        error_log('You need to install dependencies with `composer install`.');
-        return;
-    }
+    error_log('You need to install dependencies with `composer install`.');
+    return;
 }
 
 new Setup();
