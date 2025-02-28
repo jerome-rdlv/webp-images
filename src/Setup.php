@@ -103,7 +103,7 @@ class Setup
          */
 
         $in = [
-            $uploads.'/*/*',
+            $uploads . '/*/*',
         ];
 
         if (is_multisite() && file_exists($uploads . '/sites')) {
@@ -123,7 +123,8 @@ class Setup
             ->files()
             ->name(sprintf('*.{%s}', implode(',', $this->getExtensions())))
             ->filter(function (SplFileInfo $file) {
-                return !preg_match('/-[0-9]+x[0-9]+\.[^.]+$/', $file->getFilename());
+                $handle = !preg_match('/-[0-9]+x[0-9]+\.[^.]+$/', $file->getFilename());
+                return apply_filters('webp_images_filter', $file, $handle);
             });
 
         register_shutdown_function([$this, 'shutdown']);
